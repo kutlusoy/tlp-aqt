@@ -10,9 +10,11 @@
 
 ## Overview
 
-Temporal Loop Processing (TLP) is a proposed software-level error mitigation framework for NISQ-era trapped-ion quantum processors. TLP combines circuit segmentation, time-symmetric echo techniques, and probabilistic validation to suppress coherent control errors without requiring logical qubit encoding or additional hardware features.
+Temporal Loop Processing (TLP) is a Layer 2 software-based error mitigation framework for NISQ-era trapped-ion quantum processors. TLP operates as middleware between the physical quantum hardware (Layer 1) and higher-level error mitigation techniques (Layer 3+), combining circuit segmentation, time-symmetric echo techniques, and probabilistic validation to suppress coherent control errors without requiring logical qubit encoding or hardware modifications.
 
-**Important:** TLP does not provide fault tolerance or full quantum error correction. It offers statistical improvements in circuit fidelity through careful execution control and validation, with conservative performance estimates of **1.5×–3× effective improvement** under favorable conditions.
+**Layer 2 Architecture:** TLP functions as a mandatory pre-processing layer that must be applied before other error mitigation methods (such as ZNE or PEC). By suppressing systematic coherent errors at the execution layer, TLP provides cleaner baseline states for subsequent mitigation techniques, enabling multiplicative improvements.
+
+**Important:** TLP does not provide fault tolerance or full quantum error correction. It offers statistical improvements in circuit fidelity through systematic error suppression at Layer 2, with conservative performance estimates of **1.5×–3× effective improvement** as a standalone technique, and higher multiplicative gains when combined with Layer 3+ methods.
 
 ---
 
@@ -25,24 +27,41 @@ Despite achieving high gate fidelities (>99%) and long coherence times, current 
 - **Accumulated stochastic noise** over deep circuits
 - **Limited circuit depth** before error dominance
 
-TLP addresses these limitations at the **execution layer** without requiring new hardware features, operating as a complementary technique alongside existing error mitigation methods such as Zero-Noise Extrapolation (ZNE) and dynamical decoupling.
+TLP addresses these limitations as a **Layer 2 middleware solution** operating between raw hardware and higher-level mitigation techniques. By suppressing coherent errors at the execution layer through time-symmetric validation, TLP provides cleaner baseline states that enable subsequent error mitigation methods—such as Zero-Noise Extrapolation (ZNE), Probabilistic Error Cancellation (PEC), and readout error mitigation—to operate more effectively.
+
+**Key Distinction:** TLP is not an alternative to existing techniques but a **mandatory pre-processing layer** that must be applied first, before other error correction measures. This layered architecture enables multiplicative improvements: F_total = F_TLP × F_ZNE.
 
 ---
 
 ## Core Concepts
 
+### Understanding TLP's Layer 2 Architecture
+
+**The Layered Approach:**
+```
+Layer 1: Raw Hardware (trapped-ion processor)
+         ↓ inherent noise: coherent + stochastic errors
+Layer 2: TLP Processing (MUST BE APPLIED FIRST)
+         ↓ suppresses coherent errors: O(δ) → O(δ²)
+Layer 3+: ZNE / PEC / Other Mitigation
+         ↓ handles remaining stochastic noise
+Application Results
+```
+
 ### An Intuitive Analogy
 
-To understand TLP's approach, consider the challenge of reading a historically valuable but physically damaged vinyl record:
+To understand TLP's Layer 2 role, consider the challenge of reading a historically valuable but physically damaged vinyl record:
 
-**The Problem:** The record is warped, the material is brittle, and the turntable runs unevenly. A standard playback would produce chaotic noise.
+**Layer 1 - The Problem:** The record is warped, the material is brittle, and the turntable runs unevenly. A standard playback would produce chaotic noise.
 
-**TLP's Solution (Hardware Layer):**
+**Layer 2 - TLP's Stabilization (Must Happen First):**
 - **Adaptive Speed Control:** In heavily damaged sections, the system reads more slowly and carefully—analogous to TLP's dynamic segment sizing based on error rates.
 - **Symmetry Check (Time Reversal):** Play a section forward, then immediately backward. If the backward run doesn't return exactly to the starting point, we know the needle skipped or drifted—this is TLP's time-symmetric echo validation.
 - **Retry with Adjustment:** If the symmetry check fails, discard that segment and re-read under adjusted conditions—TLP's bounded retry mechanism.
 
-**Result:** A stable, rhythmically accurate raw recording that subsequent digital filters (ZNE, post-processing) can effectively clean.
+**Layer 3+ - Digital Post-Processing (Happens After TLP):** Only after TLP has produced a stable raw recording can subsequent digital filters (ZNE, post-processing) effectively remove remaining background noise.
+
+**Critical Insight:** Without Layer 2 stabilization, Layer 3+ techniques would be attempting to clean a recording with missing beats and timing jumps—an impossible task. TLP provides the stable foundation that all subsequent mitigation techniques require.
 
 ### Technical Implementation
 
@@ -62,11 +81,13 @@ TLP operates through five key mechanisms:
 
 ## Mathematical Formalism
 
+### Layer 2 Error Suppression
+
 For a circuit \(U\) decomposed into \(n\) segments:
 
 $$U = U_n \circ U_{n-1} \circ \cdots \circ U_1$$
 
-Each segment undergoes echo verification:
+Each segment undergoes echo verification at Layer 2:
 
 $$\mathcal{R}_i = U_i^\dagger \circ U_i$$
 
@@ -74,29 +95,44 @@ Under coherent error \(U_i \to U_i \cdot e^{i\delta H}\), where \(\delta H\) is 
 
 $$\mathcal{R}_i \approx e^{-i\delta H} \cdot e^{i\delta H} \cdot \mathbb{I} = \mathbb{I} + O(\delta^2)$$
 
-Coherent errors are thus suppressed to second order. This mechanism is complementary to existing techniques:
+Coherent errors are thus suppressed from linear O(δ) to quadratic O(δ²) order at Layer 2, before any higher-layer mitigation is applied.
 
-- **TLP:** Suppresses coherent control errors via time symmetry
-- **ZNE:** Extrapolates stochastic noise through noise scaling
-- **Dynamical Decoupling:** Suppresses environmental decoherence
+### Layered Mitigation Pipeline
 
-**Combined Pipeline:**
+TLP operates as the mandatory first layer in a sequential mitigation pipeline:
+
+```
+Layer 1: Raw Hardware → F_base (with coherent + stochastic errors)
+         ↓
+Layer 2: TLP → F_TLP (coherent errors reduced: O(δ) → O(δ²))
+         ↓
+Layer 3+: ZNE / PEC → F_final (stochastic noise extrapolated)
+```
+
+**Mathematical Relationship:**
 
 $$F_{\text{total}} = F_{\text{TLP}} \times F_{\text{ZNE}}$$
 
-Since TLP reduces the baseline error rate, subsequent mitigation techniques operate on cleaner states, yielding multiplicative improvements.
+Since TLP reduces the baseline error rate at Layer 2, subsequent Layer 3+ mitigation techniques (ZNE, PEC, readout error mitigation) operate on cleaner states with:
+- Lower baseline noise → more accurate ZNE extrapolation
+- Reduced variance → fewer required samples in PEC
+- Cleaner measurement distributions → better readout correction
+
+This yields multiplicative improvements through proper layered architecture, not additive combinations.
 
 ---
 
 ## Design Principles
 
-TLP adheres to strict scientific and engineering constraints:
+TLP adheres to strict scientific and engineering constraints as a Layer 2 solution:
 
 1. **Physical Realism:** No state rollback, hidden reversibility, or unphysical information recovery
 2. **Probabilistic Mitigation:** Statistical improvement only—no deterministic error correction
 3. **Hardware Awareness:** Explicit exploitation of trapped-ion all-to-all connectivity
-4. **Complementarity:** Designed to work alongside ZNE, dynamical decoupling, and future QEC
-5. **Reproducibility:** Identical orchestration logic for simulation and hardware execution
+4. **Layer 2 Architecture:** Software-only implementation requiring no hardware modifications
+5. **Mandatory Pre-Processing:** Designed to operate before other error mitigation methods (ZNE, PEC, readout correction)
+6. **Sequential Integration:** Provides cleaned baseline states as input for Layer 3+ techniques
+7. **Reproducibility:** Identical orchestration logic for simulation and hardware execution
 
 ---
 
@@ -238,13 +274,29 @@ TLP is not a universal solution and has well-defined boundaries:
 
 ## Relation to Quantum Error Correction
 
-TLP is explicitly **not** quantum error correction, but shares conceptual similarities:
+TLP is explicitly **not** quantum error correction, but operates as a complementary Layer 2 pre-processor:
 
+**Architectural Relationship:**
+```
+Layer 1: Physical Qubits (raw hardware)
+         ↓
+Layer 2: TLP (coherent error suppression)
+         ↓
+Layer 3: Logical Qubit Encoding (QEC)
+         ↓
+Layer 4+: Fault-Tolerant Computation
+```
+
+**Conceptual Similarities:**
 - Validation checks resemble low-weight stabilizer measurements
 - Segmentation aligns with future logical qubit layouts
-- May serve as a pre-conditioning layer for QEC protocols
+- Operates at physical layer before logical encoding
 
-As fault-tolerant quantum computing matures, TLP could operate at the physical layer to improve raw qubit quality before logical encoding, potentially reducing QEC overhead.
+**Future Integration:**
+As fault-tolerant quantum computing matures, TLP will operate at Layer 2 to improve raw physical qubit quality before Layer 3 logical encoding, potentially:
+- Reducing the effective error rate seen by QEC protocols
+- Lowering the required physical-to-logical qubit ratio
+- Enabling more efficient fault-tolerant computation
 
 ---
 
